@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\MaintainResource\Pages;
 use App\Models\Maintain;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Group;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms\Components\Card;
 use Filament\Tables\Columns\IconColumn;
 
@@ -231,6 +233,19 @@ class MaintainResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('print')
+                    ->label('Print')
+                    ->icon('heroicon-o-printer')
+                    ->action(function (Maintain $record) {
+                        // Generate PDF
+                        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
+
+                        // Return the PDF for download
+                        return response()->streamDownload(
+                            fn () => print($pdf->output()),
+                            "room-{$record->room_number}.pdf"
+                        );
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
