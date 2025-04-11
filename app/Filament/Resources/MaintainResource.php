@@ -29,6 +29,13 @@ class MaintainResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'room_number';
 
+     // This method filters the query to only show records created by the currently logged-in user
+     public static function getEloquentQuery(): Builder
+     {
+         return parent::getEloquentQuery()
+             ->where('user_id', auth()->id());
+     }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -98,7 +105,7 @@ class MaintainResource extends Resource
                         Forms\Components\TextInput::make('door_lock_pin')
                             ->label('Door Lock PIN')
                             ->maxLength(255)
-                            ->visible(fn (Forms\Get $get) => $get('has_door_lock') === true),
+                            ->visible(fn(Forms\Get $get) => $get('has_door_lock') === true),
 
                         Forms\Components\Repeater::make('window_lock_checked')
                             ->label('Window Lock Check History')
@@ -155,18 +162,18 @@ class MaintainResource extends Resource
                         Forms\Components\TextInput::make('tv_model')
                             ->label('TV Model')
                             ->maxLength(255)
-                            ->visible(fn (Forms\Get $get) => $get('has_tv') === true),
+                            ->visible(fn(Forms\Get $get) => $get('has_tv') === true),
                         Forms\Components\Toggle::make('has_tv_remote')
                             ->label('TV Remote')
                             ->default(false)
-                            ->visible(fn (Forms\Get $get) => $get('has_tv') === true),
+                            ->visible(fn(Forms\Get $get) => $get('has_tv') === true),
                         Forms\Components\Select::make('tv_place')
                             ->label('TV Placement')
                             ->options([
                                 'Wall fixed' => 'Wall fixed',
                                 'Table' => 'Table',
                             ])
-                            ->visible(fn (Forms\Get $get) => $get('has_tv') === true),
+                            ->visible(fn(Forms\Get $get) => $get('has_tv') === true),
                     ])->columns(2),
 
                 Section::make('Notes')
@@ -242,7 +249,7 @@ class MaintainResource extends Resource
 
                         // Return the PDF for download
                         return response()->streamDownload(
-                            fn () => print($pdf->output()),
+                            fn() => print($pdf->output()),
                             "room-{$record->room_number}.pdf"
                         );
                     }),
@@ -260,6 +267,8 @@ class MaintainResource extends Resource
             //
         ];
     }
+
+
 
     public static function getPages(): array
     {
