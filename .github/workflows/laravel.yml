@@ -8,12 +8,11 @@ jobs:
     - name: 🚚 Get latest code
       uses: actions/checkout@v4
 
-    - name: 📂 Sync files
+    - name: SFTP Deploy
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
-        server: ${{ secrets.FTP_HOST }}
+        server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        timeout: 60000  # Increase timeout to 60 seconds
-        protocol: ftp   # Explicitly use FTP protocol
-        passive: true   # Force passive mode
+        protocol: sftp  # Change this to use SFTP instead of FTP
+        port: 22  # SSH port
