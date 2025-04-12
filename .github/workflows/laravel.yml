@@ -7,14 +7,10 @@ jobs:
     steps:
     - name: 🚚 Get latest code
       uses: actions/checkout@v4
-    
-    - name: 📂 Sync files via SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+
+    - name: 📂 Sync files
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_HOST }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        port: 21 # Default SFTP port
-        local_path: ./* # Source directory to upload
-        remote_path: /path/to/your/website # Destination path on server
-        sftp_only: true # Ensure SFTP protocol is used
