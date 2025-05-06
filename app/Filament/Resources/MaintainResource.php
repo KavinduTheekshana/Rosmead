@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\MaintainResource\Pages;
 use App\Models\Maintain;
+use App\Models\Room;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -25,16 +26,18 @@ class MaintainResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-home';
 
-    protected static ?string $navigationLabel = 'Room Maintenance';
+    protected static ?string $navigationLabel = 'Maintenance';
+    protected static ?string $navigationGroup = 'Management';
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $recordTitleAttribute = 'room_number';
 
-     // This method filters the query to only show records created by the currently logged-in user
-     public static function getEloquentQuery(): Builder
-     {
-         return parent::getEloquentQuery()
-             ->where('user_id', auth()->id());
-     }
+    // This method filters the query to only show records created by the currently logged-in user
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('user_id', auth()->id());
+    }
 
     public static function form(Form $form): Form
     {
@@ -45,11 +48,14 @@ class MaintainResource extends Resource
 
                 Section::make('Room Information')
                     ->schema([
-                        Forms\Components\TextInput::make('room_number')
+                        Forms\Components\Select::make('room_number')
+                            ->options(function () {
+                                // Get rooms only for the current user
+                                return Room::where('user_id', auth()->id())
+                                    ->pluck('room_number', 'room_number');
+                            })
                             ->required()
-                            ->maxLength(255),
-                        Forms\Components\TextInput::make('resident_name')
-                            ->maxLength(255),
+                            ->searchable(),
                     ])->columns(2),
 
                 Section::make('Bed Configuration')
@@ -107,20 +113,7 @@ class MaintainResource extends Resource
                             ->maxLength(255)
                             ->visible(fn(Forms\Get $get) => $get('has_door_lock') === true),
 
-                        Forms\Components\Repeater::make('window_lock_checked')
-                            ->label('Window Lock Check History')
-                            ->schema([
-                                Forms\Components\DatePicker::make('checked_date')
-                                    ->label('Date Checked')
-                                    ->required(),
-                                Forms\Components\TextInput::make('checked_by')
-                                    ->label('Checked By')
-                                    ->required(),
-                                Forms\Components\Textarea::make('notes')
-                                    ->label('Notes'),
-                            ])
-                            ->itemLabel(fn(array $state): ?string => $state['checked_date'] ?? null)
-                            ->columns(3),
+
 
                         Forms\Components\Repeater::make('fire_door_guard_checked')
                             ->label('Fire Door Guard Check History')
@@ -128,14 +121,11 @@ class MaintainResource extends Resource
                                 Forms\Components\DatePicker::make('checked_date')
                                     ->label('Date Checked')
                                     ->required(),
-                                Forms\Components\TextInput::make('checked_by')
-                                    ->label('Checked By')
-                                    ->required(),
                                 Forms\Components\Textarea::make('notes')
                                     ->label('Notes'),
                             ])
                             ->itemLabel(fn(array $state): ?string => $state['checked_date'] ?? null)
-                            ->columns(3),
+                            ->columns(2),
 
                         Forms\Components\Repeater::make('fire_door_guard_battery_replaced')
                             ->label('Fire Door Guard Battery Replacement History')
@@ -143,14 +133,11 @@ class MaintainResource extends Resource
                                 Forms\Components\DatePicker::make('replaced_date')
                                     ->label('Date Replaced')
                                     ->required(),
-                                Forms\Components\TextInput::make('replaced_by')
-                                    ->label('Replaced By')
-                                    ->required(),
                                 Forms\Components\Textarea::make('notes')
                                     ->label('Notes'),
                             ])
                             ->itemLabel(fn(array $state): ?string => $state['replaced_date'] ?? null)
-                            ->columns(3),
+                            ->columns(2),
                     ])->columns(2),
 
                 Section::make('Entertainment')
@@ -176,23 +163,22 @@ class MaintainResource extends Resource
                             ->visible(fn(Forms\Get $get) => $get('has_tv') === true),
                     ])->columns(2),
 
-                Section::make('Notes')
+                    Section::make('Notes')
                     ->schema([
                         Forms\Components\Repeater::make('comments')
                             ->label('Maintenance Comments History')
                             ->schema([
                                 Forms\Components\DatePicker::make('date')
                                     ->label('Date')
-                                    ->required(),
-                                Forms\Components\TextInput::make('user')
-                                    ->label('Added By')
-                                    ->required(),
+                                    ->required()
+                                    ->columnSpan(1),
                                 Forms\Components\Textarea::make('comment')
                                     ->label('Comment')
-                                    ->required(),
+                                    ->required()
+                                    ->columnSpan(2),
                             ])
                             ->itemLabel(fn(array $state): ?string => $state['date'] ?? null)
-                            ->columns(3),
+                            ->columns(3), // Increased columns for better control
                     ]),
             ]);
     }
@@ -204,20 +190,12 @@ class MaintainResource extends Resource
                 Tables\Columns\TextColumn::make('room_number')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('resident_name')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('bed_type')
-                    ->searchable(),
-                IconColumn::make('has_bed_rails')
+                IconColumn::make('has_ceiling_light')
                     ->boolean()
-                    ->label('Bed Rails'),
-                Tables\Columns\TextColumn::make('mattress_type')
-                    ->searchable()
-                    ->sortable(),
-                IconColumn::make('has_sensor_mat')
+                    ->label('Ceiling Light'),
+                IconColumn::make('has_ceiling_fan')
                     ->boolean()
-                    ->label('Sensor Mat'),
+                    ->label('Ceiling Fan'),
                 IconColumn::make('has_tv')
                     ->boolean()
                     ->label('TV'),
