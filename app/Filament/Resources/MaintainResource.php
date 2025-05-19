@@ -19,12 +19,13 @@ use Filament\Forms\Components\Group;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms\Components\Card;
 use Filament\Tables\Columns\IconColumn;
+use Illuminate\Support\Facades\Log;
 
 class MaintainResource extends Resource
 {
     protected static ?string $model = Maintain::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-home';
+    protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     protected static ?string $navigationLabel = 'Maintenance';
     protected static ?string $navigationGroup = 'Management';
@@ -113,8 +114,6 @@ class MaintainResource extends Resource
                             ->maxLength(255)
                             ->visible(fn(Forms\Get $get) => $get('has_door_lock') === true),
 
-
-
                         Forms\Components\Repeater::make('fire_door_guard_checked')
                             ->label('Fire Door Guard Check History')
                             ->schema([
@@ -163,7 +162,7 @@ class MaintainResource extends Resource
                             ->visible(fn(Forms\Get $get) => $get('has_tv') === true),
                     ])->columns(2),
 
-                    Section::make('Notes')
+                Section::make('Notes')
                     ->schema([
                         Forms\Components\Repeater::make('comments')
                             ->label('Maintenance Comments History')
@@ -218,9 +217,21 @@ class MaintainResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+
+                // Print action - shows PDF in browser for preview (using URL)
                 Tables\Actions\Action::make('print')
                     ->label('Print')
                     ->icon('heroicon-o-printer')
+                    ->url(function (Maintain $record) {
+                        return route('maintain.print', ['record' => $record->id]);
+                    })
+                    ->openUrlInNewTab(true),
+
+        
+
+                Tables\Actions\Action::make('print')
+                     ->label('Download')
+               ->icon('heroicon-o-arrow-down-tray')
                     ->action(function (Maintain $record) {
                         // Generate PDF
                         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
@@ -239,14 +250,65 @@ class MaintainResource extends Resource
             ]);
     }
 
+    /**
+     * Generate PDF for printing (inline display)
+     */
+    public static function printPdf($recordId)
+    {
+        $record = static::getModel()::findOrFail($recordId);
+
+        // Ensure user can only access their own records
+        if ($record->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        try {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
+
+            return response($pdf->output())
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="room-' . $record->room_number . '.pdf"')
+                ->header('Cache-Control', 'private, max-age=0, must-revalidate')
+                ->header('Pragma', 'public');
+        } catch (\Exception $e) {
+            \Log::error('PDF Print Error: ' . $e->getMessage());
+            abort(500, 'Error generating PDF: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate PDF for download
+     */
+    public static function downloadPdf($recordId)
+    {
+        $record = static::getModel()::findOrFail($recordId);
+
+        // Ensure user can only access their own records
+        if ($record->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        try {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
+
+            $filename = "room-{$record->room_number}-" . now()->format('Y-m-d') . '.pdf';
+
+            return response($pdf->output())
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->header('Content-Length', strlen($pdf->output()));
+        } catch (\Exception $e) {
+            Log::error('PDF Download Error: ' . $e->getMessage());
+            abort(500, 'Error generating PDF: ' . $e->getMessage());
+        }
+    }
+
     public static function getRelations(): array
     {
         return [
             //
         ];
     }
-
-
 
     public static function getPages(): array
     {
