@@ -258,9 +258,9 @@ class MaintainResource extends Resource
         $record = static::getModel()::findOrFail($recordId);
 
         // Ensure user can only access their own records
-        if ($record->user_id !== auth()->id()) {
-            abort(403);
-        }
+        // if ($record->user_id !== auth()->id()) {
+        //     abort(403);
+        // }
 
         try {
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
@@ -271,7 +271,7 @@ class MaintainResource extends Resource
                 ->header('Cache-Control', 'private, max-age=0, must-revalidate')
                 ->header('Pragma', 'public');
         } catch (\Exception $e) {
-            \Log::error('PDF Print Error: ' . $e->getMessage());
+            Log::error('PDF Print Error: ' . $e->getMessage());
             abort(500, 'Error generating PDF: ' . $e->getMessage());
         }
     }
@@ -317,6 +317,7 @@ class MaintainResource extends Resource
             'create' => Pages\CreateMaintain::route('/create'),
             'edit' => Pages\EditMaintain::route('/{record}/edit'),
             'view' => Pages\ViewMaintain::route('/{record}'),
+            // 'print' => Pages\PrintMaintain::route('/{record}/print'),
         ];
     }
 }

@@ -6,15 +6,12 @@ use App\Filament\Resources\MaintainResource;
 //     return view('welcome');
 // });
 
-Route::get('/maintain/{record}/print', function ($record) {
-    return MaintainResource::printPdf($record);
-})->name('maintain.print');
 
 
 Route::middleware(['auth'])->group(function () {
-    // Route::get('/maintain/{record}/print', function ($record) {
-    //     return MaintainResource::printPdf($record);
-    // })->name('maintain.print');
+    Route::get('/maintain/{record}/print', function ($record) {
+        return MaintainResource::printPdf($record);
+    })->name('maintain.print');
 
     Route::get('/maintain/{record}/download', function ($record) {
         return MaintainResource::downloadPdf($record);
