@@ -48,15 +48,31 @@ class MaintainResource extends Resource
                     ->default(fn() => Auth::id()),
 
                 Section::make('Room Information')
-                    ->schema([
+                     ->schema([
                         Forms\Components\Select::make('room_number')
-                            ->options(function () {
+                            ->options(function ($livewire) {
                                 // Get rooms only for the current user
-                                return Room::where('user_id', auth()->id())
+                                $userRooms = Room::where('user_id', auth()->id())
                                     ->pluck('room_number', 'room_number');
+                                
+                                // Get rooms that already have maintenance records
+                                $maintainedRooms = Maintain::where('user_id', auth()->id())
+                                    ->pluck('room_number')
+                                    ->toArray();
+                                
+                                // If we're editing an existing record, include the current room
+                                if (isset($livewire->record) && $livewire->record->room_number) {
+                                    $maintainedRooms = array_diff($maintainedRooms, [$livewire->record->room_number]);
+                                }
+                                
+                                // Filter out rooms that already have maintenance records
+                                return $userRooms->filter(function ($roomNumber, $key) use ($maintainedRooms) {
+                                    return !in_array($roomNumber, $maintainedRooms);
+                                });
                             })
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->placeholder('Select a room that doesn\'t have maintenance record yet'),
                     ])->columns(2),
 
                 Section::make('Bed Configuration')

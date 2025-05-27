@@ -15,6 +15,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Validation\ValidationException;
 
 class WindowCheckResource extends Resource
 {
@@ -42,17 +43,119 @@ class WindowCheckResource extends Resource
                                     ->pluck('room_number', 'room_number');
                             })
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set, $get, $livewire) {
+                                // Clear validation errors when room changes
+                                $livewire->resetValidation(['data.room_number']);
+                            })
+                            ->rules([
+                                'required',
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        if (!$value) return;
+                                        
+                                        $data = $livewire->data ?? [];
+                                        $month = $data['month'] ?? null;
+                                        $year = $data['year'] ?? null;
+                                        
+                                        if ($month && $year) {
+                                            $query = WindowCheck::where('user_id', auth()->id())
+                                                ->where('room_number', $value)
+                                                ->where('month', $month)
+                                                ->where('year', $year);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record) && $livewire->record->id) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($month)->format('F');
+                                                $fail("Window check for Room {$value} in {$monthName} {$year} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
 
                         Forms\Components\Select::make('month')
                             ->options(array_combine(range(1, 12), array_map(fn($m) => Carbon::create()->month($m)->format('F'), range(1, 12))))
                             ->default(now()->month)
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set, $get, $livewire) {
+                                // Clear validation errors when month changes
+                                $livewire->resetValidation(['data.month']);
+                            })
+                            ->rules([
+                                'required',
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        if (!$value) return;
+                                        
+                                        $data = $livewire->data ?? [];
+                                        $roomNumber = $data['room_number'] ?? null;
+                                        $year = $data['year'] ?? null;
+                                        
+                                        if ($roomNumber && $year) {
+                                            $query = WindowCheck::where('user_id', auth()->id())
+                                                ->where('room_number', $roomNumber)
+                                                ->where('month', $value)
+                                                ->where('year', $year);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record) && $livewire->record->id) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($value)->format('F');
+                                                $fail("Window check for Room {$roomNumber} in {$monthName} {$year} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
 
                         Forms\Components\Select::make('year')
-                            ->options(array_combine(range(now()->year - 2, now()->year + 1), range(now()->year - 2, now()->year + 1)))
+                            ->options(array_combine(range(now()->year - 2, now()->year + 2), range(now()->year - 2, now()->year + 2)))
                             ->default(now()->year)
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set, $get, $livewire) {
+                                // Clear validation errors when year changes
+                                $livewire->resetValidation(['data.year']);
+                            })
+                            ->rules([
+                                'required',
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        if (!$value) return;
+                                        
+                                        $data = $livewire->data ?? [];
+                                        $roomNumber = $data['room_number'] ?? null;
+                                        $month = $data['month'] ?? null;
+                                        
+                                        if ($roomNumber && $month) {
+                                            $query = WindowCheck::where('user_id', auth()->id())
+                                                ->where('room_number', $roomNumber)
+                                                ->where('month', $month)
+                                                ->where('year', $value);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record) && $livewire->record->id) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($month)->format('F');
+                                                $fail("Window check for Room {$roomNumber} in {$monthName} {$value} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
                     ]),
 
                 Forms\Components\DatePicker::make('check_date')
@@ -82,7 +185,8 @@ class WindowCheckResource extends Resource
                             ->columnSpanFull()
                             ->hidden(fn(Get $get): bool => $get('fit_for_purpose') === true && $get('status') === true),
                     ]),
-            ]);
+            ])
+            ->model(WindowCheck::class);
     }
 
     public static function table(Table $table): Table

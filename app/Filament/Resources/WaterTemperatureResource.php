@@ -13,6 +13,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 use Filament\Forms\Get;
+use Illuminate\Validation\Rule;
 
 class WaterTemperatureResource extends Resource
 {
@@ -40,17 +41,95 @@ class WaterTemperatureResource extends Resource
                                     ->pluck('room_number', 'room_number');
                             })
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->live() // Make it reactive for validation
+                            ->rules([
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        $month = data_get($livewire->data, 'month');
+                                        $year = data_get($livewire->data, 'year');
+                                        
+                                        if ($value && $month && $year) {
+                                            $query = WaterTemperature::where('user_id', auth()->id())
+                                                ->where('room_number', $value)
+                                                ->where('month', $month)
+                                                ->where('year', $year);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record)) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($month)->format('F');
+                                                $fail("Water temperature for Room {$value} in {$monthName} {$year} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
 
                         Forms\Components\Select::make('month')
                             ->options(array_combine(range(1, 12), array_map(fn($m) => Carbon::create()->month($m)->format('F'), range(1, 12))))
                             ->default(now()->month)
-                            ->required(),
+                            ->required()
+                            ->live() // Make it reactive for validation
+                            ->rules([
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        $roomNumber = data_get($livewire->data, 'room_number');
+                                        $year = data_get($livewire->data, 'year');
+                                        
+                                        if ($roomNumber && $value && $year) {
+                                            $query = WaterTemperature::where('user_id', auth()->id())
+                                                ->where('room_number', $roomNumber)
+                                                ->where('month', $value)
+                                                ->where('year', $year);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record)) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($value)->format('F');
+                                                $fail("Water temperature for Room {$roomNumber} in {$monthName} {$year} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
 
                         Forms\Components\Select::make('year')
                             ->options(array_combine(range(now()->year - 2, now()->year + 1), range(now()->year - 2, now()->year + 1)))
                             ->default(now()->year)
-                            ->required(),
+                            ->required()
+                            ->live() // Make it reactive for validation
+                            ->rules([
+                                function ($livewire) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($livewire) {
+                                        $roomNumber = data_get($livewire->data, 'room_number');
+                                        $month = data_get($livewire->data, 'month');
+                                        
+                                        if ($roomNumber && $month && $value) {
+                                            $query = WaterTemperature::where('user_id', auth()->id())
+                                                ->where('room_number', $roomNumber)
+                                                ->where('month', $month)
+                                                ->where('year', $value);
+                                                
+                                            // If editing, exclude current record
+                                            if (isset($livewire->record)) {
+                                                $query->where('id', '!=', $livewire->record->id);
+                                            }
+                                            
+                                            if ($query->exists()) {
+                                                $monthName = Carbon::create()->month($month)->format('F');
+                                                $fail("Water temperature for Room {$roomNumber} in {$monthName} {$value} already exists. Please edit the existing record instead.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ]),
                     ]),
 
                 Forms\Components\DatePicker::make('check_date')
