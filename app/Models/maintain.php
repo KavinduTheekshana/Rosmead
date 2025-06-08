@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Maintain extends Model
 {
@@ -36,10 +37,11 @@ class Maintain extends Model
         'tv_model',
         'has_tv_remote',
         'tv_place',
-        'comments',
-        'window_lock_checked',
-        'fire_door_guard_checked',
-        'fire_door_guard_battery_replaced',
+        // Remove the JSON fields as they'll be in separate tables
+        // 'comments',
+        // 'window_lock_checked',
+        // 'fire_door_guard_checked',
+        // 'fire_door_guard_battery_replaced',
     ];
 
     /**
@@ -59,10 +61,11 @@ class Maintain extends Model
         'has_door_lock' => 'boolean',
         'has_tv' => 'boolean',
         'has_tv_remote' => 'boolean',
-        'window_lock_checked' => 'array',
-        'fire_door_guard_checked' => 'array',
-        'fire_door_guard_battery_replaced' => 'array',
-        'comments' => 'array',
+        // Remove JSON casts as they're now in separate tables
+        // 'window_lock_checked' => 'array',
+        // 'fire_door_guard_checked' => 'array',
+        // 'fire_door_guard_battery_replaced' => 'array',
+        // 'comments' => 'array',
     ];
 
     /**
@@ -74,46 +77,56 @@ class Maintain extends Model
     }
 
     /**
-     * Set the window lock checked attribute.
-     *
-     * @param  mixed  $value
-     * @return void
+     * Get all comments for this maintenance record.
      */
-    public function setWindowLockCheckedAttribute($value)
+    public function comments(): HasMany
     {
-        $this->attributes['window_lock_checked'] = is_array($value) ? json_encode($value) : $value;
+        return $this->hasMany(MaintenanceComment::class);
     }
 
     /**
-     * Set the fire door guard checked attribute.
-     *
-     * @param  mixed  $value
-     * @return void
+     * Get all fire door guard checks for this maintenance record.
      */
-    public function setFireDoorGuardCheckedAttribute($value)
+    public function fireDoorGuardChecks(): HasMany
     {
-        $this->attributes['fire_door_guard_checked'] = is_array($value) ? json_encode($value) : $value;
+        return $this->hasMany(FireDoorGuardCheck::class);
     }
 
     /**
-     * Set the fire door guard battery replaced attribute.
-     *
-     * @param  mixed  $value
-     * @return void
+     * Get all fire door guard battery replacements for this maintenance record.
      */
-    public function setFireDoorGuardBatteryReplacedAttribute($value)
+    public function fireDoorGuardBatteryReplacements(): HasMany
     {
-        $this->attributes['fire_door_guard_battery_replaced'] = is_array($value) ? json_encode($value) : $value;
+        return $this->hasMany(FireDoorGuardBattery::class);
     }
 
     /**
-     * Set the comments attribute.
-     *
-     * @param  mixed  $value
-     * @return void
+     * Get comments for a specific year
      */
-    public function setCommentsAttribute($value)
+    public function commentsForYear(int $year): HasMany
     {
-        $this->attributes['comments'] = is_array($value) ? json_encode($value) : $value;
+        return $this->comments()->whereYear('date', $year);
     }
+
+    /**
+     * Get fire door guard checks for a specific year
+     */
+    public function fireDoorGuardChecksForYear(int $year): HasMany
+    {
+        return $this->fireDoorGuardChecks()->whereYear('checked_date', $year);
+    }
+
+    /**
+     * Get fire door guard battery replacements for a specific year
+     */
+    public function fireDoorGuardBatteryReplacementsForYear(int $year): HasMany
+    {
+        return $this->fireDoorGuardBatteryReplacements()->whereYear('replaced_date', $year);
+    }
+
+    // Remove the old JSON setter methods as they're no longer needed
+    // public function setWindowLockCheckedAttribute($value) { ... }
+    // public function setFireDoorGuardCheckedAttribute($value) { ... }
+    // public function setFireDoorGuardBatteryReplacedAttribute($value) { ... }
+    // public function setCommentsAttribute($value) { ... }
 }

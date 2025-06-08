@@ -4,6 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\MaintainResource\Pages;
 use App\Models\Maintain;
+use App\Models\MaintenanceComment;
+use App\Models\FireDoorGuardCheck;
+use App\Models\FireDoorGuardBatteryReplacement;
 use App\Models\Room;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -17,9 +20,13 @@ use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Group;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\Snappy\Facades\SnappyPdf;
 use Filament\Forms\Components\Card;
 use Filament\Tables\Columns\IconColumn;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Redirect;
+use Mpdf\Mpdf;
 
 class MaintainResource extends Resource
 {
@@ -48,23 +55,23 @@ class MaintainResource extends Resource
                     ->default(fn() => Auth::id()),
 
                 Section::make('Room Information')
-                     ->schema([
+                    ->schema([
                         Forms\Components\Select::make('room_number')
                             ->options(function ($livewire) {
                                 // Get rooms only for the current user
                                 $userRooms = Room::where('user_id', auth()->id())
                                     ->pluck('room_number', 'room_number');
-                                
+
                                 // Get rooms that already have maintenance records
                                 $maintainedRooms = Maintain::where('user_id', auth()->id())
                                     ->pluck('room_number')
                                     ->toArray();
-                                
+
                                 // If we're editing an existing record, include the current room
                                 if (isset($livewire->record) && $livewire->record->room_number) {
                                     $maintainedRooms = array_diff($maintainedRooms, [$livewire->record->room_number]);
                                 }
-                                
+
                                 // Filter out rooms that already have maintenance records
                                 return $userRooms->filter(function ($roomNumber, $key) use ($maintainedRooms) {
                                     return !in_array($roomNumber, $maintainedRooms);
@@ -130,8 +137,9 @@ class MaintainResource extends Resource
                             ->maxLength(255)
                             ->visible(fn(Forms\Get $get) => $get('has_door_lock') === true),
 
-                        Forms\Components\Repeater::make('fire_door_guard_checked')
+                        Forms\Components\Repeater::make('fireDoorGuardChecks')
                             ->label('Fire Door Guard Check History')
+                            ->relationship('fireDoorGuardChecks')
                             ->schema([
                                 Forms\Components\DatePicker::make('checked_date')
                                     ->label('Date Checked')
@@ -142,8 +150,9 @@ class MaintainResource extends Resource
                             ->itemLabel(fn(array $state): ?string => $state['checked_date'] ?? null)
                             ->columns(2),
 
-                        Forms\Components\Repeater::make('fire_door_guard_battery_replaced')
+                        Forms\Components\Repeater::make('fireDoorGuardBatteryReplacements')
                             ->label('Fire Door Guard Battery Replacement History')
+                            ->relationship('fireDoorGuardBatteryReplacements')
                             ->schema([
                                 Forms\Components\DatePicker::make('replaced_date')
                                     ->label('Date Replaced')
@@ -182,6 +191,7 @@ class MaintainResource extends Resource
                     ->schema([
                         Forms\Components\Repeater::make('comments')
                             ->label('Maintenance Comments History')
+                            ->relationship('comments')
                             ->schema([
                                 Forms\Components\DatePicker::make('date')
                                     ->label('Date')
@@ -193,7 +203,7 @@ class MaintainResource extends Resource
                                     ->columnSpan(2),
                             ])
                             ->itemLabel(fn(array $state): ?string => $state['date'] ?? null)
-                            ->columns(3), // Increased columns for better control
+                            ->columns(3),
                     ]),
             ]);
     }
@@ -234,89 +244,42 @@ class MaintainResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
 
-                // Print action - shows PDF in browser for preview (using URL)
-                Tables\Actions\Action::make('print')
+                // Print with year selection
+                Tables\Actions\Action::make('print_with_year')
                     ->label('Print')
-                    ->icon('heroicon-o-printer')
-                    ->url(function (Maintain $record) {
-                        return route('maintain.print', ['record' => $record->id]);
+                    ->icon('heroicon-o-calendar')
+                    ->form([
+                        Forms\Components\Select::make('filter_year')
+                            ->label('Filter by Year')
+                            ->options(function () {
+                                $currentYear = now()->year;
+                                $years = [];
+                                for ($i = $currentYear - 5; $i <= $currentYear + 1; $i++) {
+                                    $years[$i] = $i;
+                                }
+                                return $years;
+                            })
+                            ->default(now()->year)
+                            ->required(),
+                    ])
+                    ->action(function (Maintain $record, array $data) {
+                        $url = route('maintain.print', [
+                            'record' => $record->id,
+                            'year' => $data['filter_year']
+                        ]);
+
+                        return redirect($url);
                     })
-                    ->openUrlInNewTab(true),
+                    ->extraAttributes(['target' => '_blank'])
 
-        
-
-                Tables\Actions\Action::make('print')
-                     ->label('Download')
-               ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (Maintain $record) {
-                        // Generate PDF
-                        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
-
-                        // Return the PDF for download
-                        return response()->streamDownload(
-                            fn() => print($pdf->output()),
-                            "room-{$record->room_number}.pdf"
-                        );
-                    }),
+                    ->modalHeading('Select Year for Report')
+                    ->modalSubmitActionLabel('Open Print View'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    /**
-     * Generate PDF for printing (inline display)
-     */
-    public static function printPdf($recordId)
-    {
-        $record = static::getModel()::findOrFail($recordId);
-
-        // Ensure user can only access their own records
-        // if ($record->user_id !== auth()->id()) {
-        //     abort(403);
-        // }
-
-        try {
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
-
-            return response($pdf->output())
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="room-' . $record->room_number . '.pdf"')
-                ->header('Cache-Control', 'private, max-age=0, must-revalidate')
-                ->header('Pragma', 'public');
-        } catch (\Exception $e) {
-            Log::error('PDF Print Error: ' . $e->getMessage());
-            abort(500, 'Error generating PDF: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Generate PDF for download
-     */
-    public static function downloadPdf($recordId)
-    {
-        $record = static::getModel()::findOrFail($recordId);
-
-        // Ensure user can only access their own records
-        if ($record->user_id !== auth()->id()) {
-            abort(403);
-        }
-
-        try {
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.maintain', ['record' => $record]);
-
-            $filename = "room-{$record->room_number}-" . now()->format('Y-m-d') . '.pdf';
-
-            return response($pdf->output())
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
-                ->header('Content-Length', strlen($pdf->output()));
-        } catch (\Exception $e) {
-            Log::error('PDF Download Error: ' . $e->getMessage());
-            abort(500, 'Error generating PDF: ' . $e->getMessage());
-        }
     }
 
     public static function getRelations(): array
@@ -333,7 +296,6 @@ class MaintainResource extends Resource
             'create' => Pages\CreateMaintain::route('/create'),
             'edit' => Pages\EditMaintain::route('/{record}/edit'),
             'view' => Pages\ViewMaintain::route('/{record}'),
-            // 'print' => Pages\PrintMaintain::route('/{record}/print'),
         ];
     }
 }
