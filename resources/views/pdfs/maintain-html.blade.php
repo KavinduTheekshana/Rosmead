@@ -483,7 +483,7 @@
     <script>
         function downloadPDF() {
             const roomNumber = "{{ $record->room_number }}";
-            const year = new Date().getFullYear();
+            const year = "{{ $year }}";
             const fileName = `Room-${roomNumber}-${year}.pdf`;
 
             const element = document.body;

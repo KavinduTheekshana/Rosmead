@@ -25,6 +25,7 @@ use Filament\Forms\Components\Card;
 use Filament\Tables\Columns\IconColumn;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Redirect;
 use Mpdf\Mpdf;
 
@@ -268,12 +269,20 @@ class MaintainResource extends Resource
                             'year' => $data['filter_year']
                         ]);
 
-                        return redirect($url);
+                        // Use Filament's notification system to provide the URL
+                        Notification::make()
+                            ->title('Opening Print View')
+                            ->body('The print view will open in a new tab.')
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('open')
+                                    ->label('Open Print View')
+                                    ->url($url)
+                                    ->openUrlInNewTab()
+                            ])
+                            ->send();
                     })
-                    ->extraAttributes(['target' => '_blank'])
-
                     ->modalHeading('Select Year for Report')
-                    ->modalSubmitActionLabel('Open Print View'),
+                    ->modalSubmitActionLabel('Prepare Print View'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
